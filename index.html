@@ -236,6 +236,14 @@
   .sp-sit select{padding:4px 7px;font-size:11px;border-radius:3px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.25);color:var(--chalk);font-family:inherit;cursor:pointer}
   .sp-sit select option{background:#1a1a1a;color:#fff}
   .sp-sit .sit-badge{font-size:10.5px;font-weight:700;letter-spacing:.02em;background:var(--gold);color:var(--ink);padding:2px 9px;border-radius:10px}
+  /* ---------- Personnel mix sliders ---------- */
+  .pers-row{display:grid;grid-template-columns:42px 1fr 44px;gap:8px;align-items:center;padding:3px 0}
+  .pers-row label{font-family:"SFMono-Regular",ui-monospace,monospace;font-weight:800;font-size:12px;color:var(--field)}
+  .pers-row .pct{font-family:"SFMono-Regular",ui-monospace,monospace;font-size:12px;font-weight:700;text-align:right;color:#9098a0}
+  .pers-row .pct.active{color:var(--field)}
+  .pers-row input[type=range]{height:5px;border-radius:3px;background:linear-gradient(90deg,var(--cool) 0%,var(--gold) 100%)}
+  .pers-row input[type=range]::-webkit-slider-thumb{width:18px;height:18px}
+  .pers-row input[type=range]::-moz-range-thumb{width:18px;height:18px}
   /* ---------- Data tab ---------- */
   .corr-edited td{background:#fffbe8}
   .corr-selected td{background:#f0f7ff!important}
@@ -247,7 +255,7 @@
 
 
 </style>
-</head>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0b3d20"></head>
 <body>
 <header class="topbar">
   <div class="topbar-inner">
@@ -301,18 +309,13 @@
 
       <div class="grid2" style="margin-top:16px">
         <div>
-          <label class="fld">Primary personnel base</label>
-          <div class="seg" id="ph-pers">
-            <button data-v="11" class="on">11</button>
-            <button data-v="12">12</button>
-            <button data-v="13">13</button>
-            <button data-v="20">20</button>
-            <button data-v="21">21</button>
-            <button data-v="22">22</button>
-            <button data-v="23">23</button>
-            <button data-v="10">10</button>
+          <label class="fld">Personnel mix</label>
+          <p class="hint" style="margin:0 0 8px">Set the % of the book for each grouping. Drag to adjust — total auto-normalises to 100%.</p>
+          <div id="ph-pers-sliders"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+            <div class="hint">Total: <span id="ph-pers-total" style="font-weight:700;color:var(--field)">100%</span></div>
+            <button class="btn ghost sm" id="btn-pers-preset" style="font-size:10px">↺ Reset to identity preset</button>
           </div>
-          <div class="hint" id="ph-pers-hint">11 — 1RB 1TE 3WR</div>
         </div>
         <div>
           <label class="fld">Playbook size (target plays)</label>
@@ -796,7 +799,7 @@ const PERS = ['10','11','12','21'];   // DB decode — do not change order
 // All valid personnel groupings (for UI selectors and generation)
 const ALL_PERS = ['10','11','12','13','20','21','22','23'];
 const PERS_LABEL = {
-  '10':'10 — 0RB 0TE 5WR (empty)',
+  '10':'10 — 1RB 0TE 4WR',
   '11':'11 — 1RB 1TE 3WR',
   '12':'12 — 1RB 2TE 2WR',
   '13':'13 — 1RB 3TE 1WR',
@@ -805,7 +808,7 @@ const PERS_LABEL = {
   '22':'22 — 2RB 2TE 1WR',
   '23':'23 — 2RB 3TE 0WR'
 };
-// Heavy (run-favored) personnel groups — 20 is two backs but no TE, stays light tier for pass mix
+// Heavy (run-favored) personnel groups
 const HEAVY_PERS = new Set(['12','13','21','22','23']);
 const FORMS = DB.forms, CONCEPTS = DB.concepts, FAMS = DB.fams;
 
@@ -900,6 +903,18 @@ const SITUATIONS = {
 
 const MOTION_LABELS=[[0,"Static"],[20,"Light motion"],[40,"Moderate motion"],[65,"Heavy motion"],[85,"Max disguise"]];
 
+// Default personnel mix — percentage weight each grouping gets in the book (must sum to 100)
+const DEFAULT_PERS_MIX={'11':65,'12':25,'10':0,'13':0,'20':0,'21':10,'22':0,'23':0};
+// Identity-based pers mix presets
+const IDENTITY_PERS_MIX={
+  balanced: {'11':60,'12':25,'20':5,'21':10,'10':0,'13':0,'22':0,'23':0},
+  run:      {'11':30,'12':20,'20':10,'21':20,'22':15,'23':5,'10':0,'13':0},
+  pass:     {'11':55,'12':10,'10':25,'20':5,'21':5,'13':0,'22':0,'23':0},
+  spread:   {'11':50,'12':10,'10':35,'20':5,'21':0,'13':0,'22':0,'23':0},
+  pro:      {'11':25,'12':35,'20':5,'21':20,'22':10,'23':5,'10':0,'13':0}
+};
+function defaultPhilosophy(){return{identity:'balanced',aggr:'normal',persMix:{...DEFAULT_PERS_MIX},size:100,emphasis:[],rpMin:45,rpMax:58};}
+
 /* ============================================================
    STATE + PERSISTENCE
    ============================================================ */
@@ -912,7 +927,6 @@ let scout=loadJSON(LS.scout)||defaultScout();
 
 // run/pass band defaults per identity (run% min,max)
 const IDENTITY_RP={balanced:[45,58],run:[52,68],pass:[28,42],spread:[38,52],pro:[46,60]};
-function defaultPhilosophy(){return{identity:'balanced',aggr:'normal',pers:'11',size:100,emphasis:[],rpMin:45,rpMax:58};}
 function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null};}
 function loadJSON(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function loadNum(k,d){try{const v=localStorage.getItem(k);return v===null?d:Number(v);}catch(e){return d;}}
@@ -1042,7 +1056,10 @@ function seededShuffle(arr,seed){ // deterministic so same settings => same book
   for(let i=a.length-1;i>0;i--){ s=(s*1664525+1013904223)>>>0; const j=s%(i+1); [a[i],a[j]]=[a[j],a[i]]; }
   return a;
 }
-function hashPhil(p,m){return (p.identity.length*31+p.aggr.length*17+p.pers.charCodeAt(0)+p.size+m*7+p.emphasis.join('').length*3+(p.rpMin||0)*5+(p.rpMax||0)*11)>>>0;}
+function hashPhil(p,m){
+  const pmSum=Object.entries(p.persMix||{}).reduce((s,[k,v])=>s+k.charCodeAt(0)*v,0);
+  return (p.identity.length*31+p.aggr.length*17+(p.size||0)+m*7+p.emphasis.join('').length*3+(p.rpMin||0)*5+(p.rpMax||0)*11+pmSum*13)>>>0;
+}
 
 function generatePlaybook(){
   const p=philosophy;
@@ -1058,16 +1075,19 @@ function generatePlaybook(){
   const target=p.size;
   const seed=hashPhil(p,motion);
 
+  // personnel mix — score each play by its grouping's share in persMix
+  // normalize persMix to fractions so it sums to 1
+  const pm=p.persMix||DEFAULT_PERS_MIX;
+  const pmTotal=Object.values(pm).reduce((a,b)=>a+b,0)||100;
+  const pmNorm={};ALL_PERS.forEach(g=>pmNorm[g]=(pm[g]||0)/pmTotal);
+
   // score every play — use effectivePlays() so user corrections (formation pers,
   // concept/family patches) are applied before selection, not just in the UI display
   const scored=effectivePlays().filter(pl=>pl.family!=='unknown').map(pl=>{
     let s=mix[pl.family]||0.05;
-    // personnel preference — heavy (12/13/21/22/23) vs light (10/11)
-    const wantHeavy=HEAVY_PERS.has(p.pers);
-    const playHeavy=HEAVY_PERS.has(pl.pers);
-    if(pl.pers===p.pers)          s*=1.9;   // exact match
-    else if(wantHeavy===playHeavy) s*=1.15;  // same tier (heavy/heavy or light/light)
-    else                           s*=0.6;   // mismatched tier
+    // personnel preference — weight by the user's persMix for this grouping
+    const persShare=pmNorm[pl.pers]??0.01;  // small non-zero floor so nothing is completely excluded
+    s*=(0.2 + persShare*8);                 // 0.2 floor (always selectable) + boost by mix share
     // motion slider boost — smooth ramp; true movement (2) weighted above disguise (1)
     const mn = motion/100;
     if(pl.motion===2)      s*=(1 + mn*mn*2.2);        // quadratic: low slider barely boosts, high slider strongly favors
@@ -1202,7 +1222,7 @@ function generatePlaybook(){
   const finalBook=seededShuffle(book,seed);  // size already enforced by trim pass above
 
   playbook={
-    meta:{generated:Date.now(),identity:p.identity,aggr:p.aggr,pers:p.pers,size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
+    meta:{generated:Date.now(),identity:p.identity,aggr:p.aggr,persMix:{...(p.persMix||DEFAULT_PERS_MIX)},size:target,motion,rpMin:p.rpMin,rpMax:p.rpMax},
     plays:finalBook.map(pl=>({formation:pl.formation,play:pl.play,family:pl.family,concept:pl.concept,pers:pl.pers,motion:pl.motion})),
     audibles:buildAudibles(finalBook)
   };
@@ -1482,8 +1502,7 @@ function initPhilosophyForm(){
   $('#ph-identity').value=philosophy.identity;
   $('#ph-aggr').value=philosophy.aggr;
   $('#ph-size').value=String(philosophy.size);
-  $$('#ph-pers button').forEach(b=>b.classList.toggle('on',b.dataset.v===philosophy.pers));
-  const ph=$('#ph-pers-hint');if(ph)ph.textContent=PERS_LABEL[philosophy.pers]||philosophy.pers;
+  renderPersMixSliders();
   // emphasis checkboxes
   const wrap=$('#ph-families'); wrap.innerHTML='';
   const popular=["Inside Zone","Outside Zone / Stretch","Power / Power O","Counter","Boot / Play Action","Verticals / Four Verticals","Mesh","Smash","Flood","Stick","Y Cross","Screen","Option / RPO","Jet Sweep","Quick Game"];
@@ -1503,9 +1522,46 @@ function initPhilosophyForm(){
   $('#motion-slider').value=motion; updateMotionLabel();
   // run/pass band dual slider
   $('#rp-min').value=philosophy.rpMin; $('#rp-max').value=philosophy.rpMax; updateRpReadout();
-  $('#ph-status').textContent=playbook?`Saved book: ${playbook.plays.length} plays · ${labelIdent(playbook.meta.identity)} · ${playbook.meta.pers} pers`:'No saved playbook yet — generate one.';
+  $('#ph-status').textContent=playbook?`Saved book: ${playbook.plays.length} plays · ${labelIdent(playbook.meta.identity)} · ${persMixSummary(playbook.meta.persMix)}`:'No saved playbook yet — generate one.';
 }
 function labelIdent(i){return{balanced:'Balanced',run:'Run-heavy',pass:'Pass-first',spread:'Spread/RPO',pro:'Pro-style'}[i]||i;}
+function persMixSummary(mix){
+  const pm=mix||philosophy.persMix||DEFAULT_PERS_MIX;
+  return Object.entries(pm).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+'·'+v+'%').join(' ');
+}
+
+function renderPersMixSliders(){
+  const wrap=$('#ph-pers-sliders'); if(!wrap)return;
+  wrap.innerHTML='';
+  const pm=philosophy.persMix||{...DEFAULT_PERS_MIX};
+  // Ensure all groupings exist in pm
+  ALL_PERS.forEach(g=>{if(pm[g]==null)pm[g]=0;});
+  ALL_PERS.forEach(g=>{
+    const row=el('div','pers-row');
+    const lbl=el('label',null,g); lbl.title=PERS_LABEL[g]; row.appendChild(lbl);
+    const sl=el('input'); sl.type='range'; sl.min=0; sl.max=100; sl.value=pm[g]||0;
+    sl.dataset.pers=g;
+    const pct=el('span','pct '+(pm[g]>0?'active':''),pm[g]+'%');
+    sl.addEventListener('input',()=>{
+      philosophy.persMix[g]=Number(sl.value);
+      pct.textContent=sl.value+'%';
+      pct.className='pct '+(Number(sl.value)>0?'active':'');
+      updatePersMixTotal();
+      save(LS.ph,philosophy);
+    });
+    row.appendChild(sl); row.appendChild(pct);
+    wrap.appendChild(row);
+  });
+  updatePersMixTotal();
+}
+
+function updatePersMixTotal(){
+  const pm=philosophy.persMix||{};
+  const total=Object.values(pm).reduce((a,b)=>a+b,0);
+  const el_=$('#ph-pers-total'); if(!el_)return;
+  el_.textContent=total+'%';
+  el_.style.color=total===100?'var(--cool-d)':total>100?'var(--hot-d)':'var(--gold-d)';
+}
 function updateMotionLabel(){
   $('#motion-val').textContent=motion;
   let lab=MOTION_LABELS[0][1];
@@ -1526,7 +1582,7 @@ function renderPlaybook(){
   if(!playbook){stats.innerHTML='<div class="empty" style="width:100%">No saved playbook. Go to Philosophy → Generate.</div>';$('#pb-distro').innerHTML='';$('#pb-tbody').innerHTML='';$('#pb-count').textContent='—';if($('#pb-audibles'))$('#pb-audibles').innerHTML='';return;}
   const m=playbook.meta;
   const rpTxt=(m.rpMin!=null)?`${m.rpMin}–${m.rpMax}%`:'—';
-  const chips=[['Plays',playbook.plays.length],['Identity',labelIdent(m.identity)],['Base pers',m.pers],['Run band',rpTxt],['Motion',m.motion]];
+  const chips=[['Plays',playbook.plays.length],['Identity',labelIdent(m.identity)],['Personnel mix',persMixSummary(m.persMix)],['Run band',rpTxt],['Motion',m.motion]];
   chips.forEach(([l,n])=>{const c=el('div','statchip');c.appendChild(el('div','n',String(n)));c.appendChild(el('div','l',l));stats.appendChild(c);});
   // distribution
   const byFam={}; playbook.plays.forEach(p=>byFam[p.family]=(byFam[p.family]||0)+1);
@@ -2552,24 +2608,26 @@ let _csvPending=null;   // parsed rows waiting for user confirmation
 
 function inferPers(form){
   const f=form.toLowerCase();
-  // 10 — empty / 5WR
-  if(f.includes('5wr')||f.includes('5 wr')) return '10';
+  // Empty / 5WR (0RB 0TE) — "empty" or "5wr" in the name
+  if(f.includes('5wr')||f.includes('5 wr')) return '10';   // DB legacy tags these as 10; correct to true 10 if needed
   if(/empty/.test(f)&&!/(te|y off|wing|tight)/.test(f)) return '10';
-  // 23 — 2RB 3TE (full house tight, goal line heavy)
+  // 23 — 2RB 3TE
   if(/full house.*tight|goal.?line.*tight|power.*tight.*wing|heavy.*tight/.test(f)) return '23';
   // 22 — 2RB 2TE
   if(/(i.?form|i-form|full.?house|pony).*(te|tight|y off|wing|flex|deuce|ace)/.test(f)) return '22';
   if(/(te|tight|y off|wing|flex|deuce|ace).*(i.?form|i-form|full.?house|pony)/.test(f)) return '22';
-  // 20 — 2RB 0TE (I Form / Full House without TE keywords, or explicit pony spread)
+  // 20 — 2RB 0TE (I Form / Full House / Pony without TE keywords)
   if(/i.?form|i-form|full.?house|pony/.test(f)) return '20';
-  // 21 — 2RB 1TE (two backs with a TE keyword present)
-  // (already handled above if they also have a TE keyword — this catches remaining 2-back sets)
+  // 21 — 2RB 1TE explicit
   if(/21|two.?back|twin.?back|hb.?fb/.test(f)) return '21';
   // 13 — 1RB 3TE
   if(/3te|three.?te|triple.?te/.test(f)) return '13';
   if(/(tight|y off|wing).*(flex|deuce|ace|dubs)/.test(f)) return '13';
-  // 12 — 1RB 2TE (most TE formations)
+  // 12 — 1RB 2TE
   if(/(te|y off|wing|flex|deuce|tight|ace|dubs|cluster)/.test(f)) return '12';
+  // 10 — 1RB 0TE (gun / singleback spread without any TE keyword)
+  if(/gun|singleback|pistol|wildcat/.test(f)) return '10';
+  // Default 11 — everything else
   return '11';
 }
 function inferMotion(form,play){
@@ -2982,15 +3040,20 @@ $('#btn-csv-db-reset').addEventListener('click',()=>{
 $$('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
 
 // philosophy inputs
-$('#ph-identity').addEventListener('change',e=>{philosophy.identity=e.target.value;const d=IDENTITY_RP[philosophy.identity];if(d){philosophy.rpMin=d[0];philosophy.rpMax=d[1];$('#rp-min').value=d[0];$('#rp-max').value=d[1];updateRpReadout();}save(LS.ph,philosophy);});
+$('#ph-identity').addEventListener('change',e=>{
+  philosophy.identity=e.target.value;
+  const d=IDENTITY_RP[philosophy.identity];if(d){philosophy.rpMin=d[0];philosophy.rpMax=d[1];$('#rp-min').value=d[0];$('#rp-max').value=d[1];updateRpReadout();}
+  philosophy.persMix={...(IDENTITY_PERS_MIX[philosophy.identity]||DEFAULT_PERS_MIX)};
+  renderPersMixSliders();
+  save(LS.ph,philosophy);
+});
 $('#ph-aggr').addEventListener('change',e=>{philosophy.aggr=e.target.value;save(LS.ph,philosophy);});
 $('#ph-size').addEventListener('change',e=>{philosophy.size=Number(e.target.value);save(LS.ph,philosophy);});
-$$('#ph-pers button').forEach(b=>b.addEventListener('click',()=>{
-  philosophy.pers=b.dataset.v;
-  $$('#ph-pers button').forEach(x=>x.classList.toggle('on',x===b));
-  const hint=$('#ph-pers-hint');if(hint)hint.textContent=PERS_LABEL[b.dataset.v]||b.dataset.v;
-  save(LS.ph,philosophy);
-}));
+$('#btn-pers-preset').addEventListener('click',()=>{
+  philosophy.persMix={...(IDENTITY_PERS_MIX[philosophy.identity]||DEFAULT_PERS_MIX)};
+  save(LS.ph,philosophy);renderPersMixSliders();
+  toast('Personnel mix reset to '+labelIdent(philosophy.identity)+' preset');
+});
 $('#motion-slider').addEventListener('input',e=>{motion=Number(e.target.value);updateMotionLabel();save(LS.motion,String(motion));});
 
 // run/pass dual range — clamp so min stays below max
@@ -3138,5 +3201,5 @@ initPhilosophyForm();
 if(playbook&&!ingame)seedIngameFromBook();
 console.log('Call Sheet ready · plays:',PLAYS.length,'· saved book:',playbook?playbook.plays.length:'none');
 </script>
-</body>
+<script>if('serviceWorker'in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js'));}</script></body>
 </html>
