@@ -273,10 +273,30 @@
   .corr-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:9.5px;font-weight:700;margin-left:4px;background:var(--gold);color:var(--ink)}
   #csv-dropzone:hover{border-color:var(--field);background:#f3f8f4}
   #csv-dropzone.drag-over{border-color:var(--field);background:#eaf5ef;border-style:solid}
+  /* ---------- Playbook upload/download ---------- */
+  .pb-dropzone{border:2px dashed #c8c5ba;border-radius:4px;padding:18px;text-align:center;cursor:pointer;background:#faf9f5;transition:.12s;margin-top:10px}
+  .pb-dropzone:hover,.pb-dropzone.drag-over{border-color:var(--field);background:#f3f8f4}
+  .pb-dropzone .dz-icon{font-size:22px;margin-bottom:4px}
+  .pb-dropzone .dz-label{font-weight:700;font-size:13px}
+  .pb-dropzone .dz-hint{font-size:11px;color:#8a908a;margin-top:3px}
+  /* ---------- Manual add form ---------- */
+  .add-play-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 80px 80px auto;gap:7px;align-items:end}
+  @media(max-width:760px){.add-play-grid{grid-template-columns:1fr 1fr 1fr}}
+  .add-play-grid label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#4a5048;display:block;margin-bottom:3px}
+  .pb-tbody .rm-btn{border:none;background:none;cursor:pointer;color:#b84020;font-size:14px;padding:2px 6px;border-radius:2px;opacity:.6}
+  .pb-tbody .rm-btn:hover{opacity:1;background:#fdf3f1}
+  .pb-tbody .added-row td{background:#f3f8f4}
 
 
 
 </style>
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b3d20">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Call Sheet">
+<link rel="apple-touch-icon" href="icon-180.png">
 </head>
 <body>
 <header class="topbar">
@@ -399,13 +419,22 @@
   <section class="panel" id="panel-playbook">
     <div class="card">
       <h2>Saved Base Playbook</h2>
-      <p class="desc">This is the stable book saved on this device. Load it, reset it, or regenerate from the Philosophy tab. Game plans use this — they don't regenerate from the full DB.</p>
+      <p class="desc">This is the stable book saved on this device. Download it to keep a backup — upload it on any device or after a wipe to restore everything instantly.</p>
       <div class="statchips" id="pb-stats"></div>
       <div class="btnbar">
+        <button class="btn primary sm" id="btn-pb-download">⤓ Download playbook</button>
         <button class="btn ghost sm" id="btn-load">↻ Reload saved</button>
         <button class="btn ghost sm" id="btn-pb-tojump">→ Send to In-Game</button>
         <button class="btn danger sm" id="btn-clear-pb">✕ Clear saved book</button>
       </div>
+      <!-- Upload dropzone -->
+      <div class="pb-dropzone" id="pb-dropzone">
+        <input type="file" id="pb-file-input" accept=".json" style="display:none">
+        <div class="dz-icon">📂</div>
+        <div class="dz-label">Drop a playbook backup (.json) here or click to browse</div>
+        <div class="dz-hint">Restores playbook, corrections, philosophy, and all game-plan data</div>
+      </div>
+      <div id="pb-upload-status" class="hint" style="margin-top:6px"></div>
       <div id="pb-distro" style="margin-top:16px"></div>
     </div>
     <div class="card">
@@ -415,14 +444,61 @@
       </div>
       <div class="tbl-wrap" style="margin-top:12px">
         <table id="pb-table">
-          <thead><tr><th>Formation</th><th>Pers</th><th>Play</th><th>Concept</th><th>Family</th><th>Mot</th></tr></thead>
+          <thead><tr><th></th><th>Formation</th><th>Pers</th><th>Play</th><th>Concept</th><th>Family</th><th>Mot</th></tr></thead>
           <tbody id="pb-tbody"></tbody>
         </table>
       </div>
     </div>
+    <!-- Manual add play -->
+    <div class="card">
+      <h2>Add play to book</h2>
+      <p class="desc">Add any formation and play directly to your saved book without regenerating. Plays added here are flagged as manual additions and persist through reloads.</p>
+      <div class="add-play-grid" id="add-play-grid">
+        <div>
+          <label>Formation</label>
+          <input type="text" id="ap-formation" placeholder="e.g. Gun Trips" list="ap-formation-list">
+          <datalist id="ap-formation-list"></datalist>
+        </div>
+        <div>
+          <label>Play name</label>
+          <input type="text" id="ap-play" placeholder="e.g. INSIDE ZONE" list="ap-play-list">
+          <datalist id="ap-play-list"></datalist>
+        </div>
+        <div>
+          <label>Concept</label>
+          <select id="ap-concept"></select>
+        </div>
+        <div>
+          <label>Family</label>
+          <select id="ap-family">
+            <option value="run">Run</option>
+            <option value="pass">Pass</option>
+            <option value="play_action">Play action</option>
+            <option value="option_rpo">Option / RPO</option>
+            <option value="screen">Screen</option>
+          </select>
+        </div>
+        <div>
+          <label>Personnel</label>
+          <select id="ap-pers"></select>
+        </div>
+        <div>
+          <label>Motion</label>
+          <select id="ap-motion">
+            <option value="0">None</option>
+            <option value="1">Form (disguise)</option>
+            <option value="2">Move (true)</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn primary" id="btn-add-play" style="height:36px;white-space:nowrap">+ Add</button>
+        </div>
+      </div>
+      <div id="ap-status" class="hint" style="margin-top:8px"></div>
+    </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-        <div><h2 style="margin:0">Audibles</h2><div class="hint" id="pb-aud-count">Four in-formation checks per formation — a run, a quick/RPO answer, a man-beater/shot, and a play-action.</div></div>
+        <div><h2 style="margin:0">Audibles</h2><div class="hint" id="pb-aud-count">Four in-formation checks per formation.</div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input type="text" id="pb-aud-filter" placeholder="Filter formation…" style="max-width:200px">
           <button class="btn gold sm" id="btn-aud-copy">⧉ Copy</button>
@@ -1713,20 +1789,147 @@ function renderPbTable(filter){
   if(!playbook)return;
   const f=filter.toLowerCase();
   const rows=playbook.plays.filter(p=>!f||(p.formation+p.play+p.concept+p.family).toLowerCase().includes(f));
-  $('#pb-count').textContent=`${rows.length} of ${playbook.plays.length} plays`;
-  rows.forEach(p=>{
+  const manualCount=(playbook.plays||[]).filter(p=>p._manual).length;
+  $('#pb-count').textContent=`${rows.length} of ${playbook.plays.length} plays`+(manualCount?` · ${manualCount} manually added`:'');
+  rows.forEach((p,i)=>{
     const tr=el('tr');
+    if(p._manual) tr.classList.add('added-row');
+    // remove button
+    const rmTd=el('td');
+    const rm=el('button','rm-btn','✕'); rm.title='Remove from book';
+    rm.addEventListener('click',()=>{
+      // find actual index in playbook.plays (filter may have narrowed it)
+      const idx=playbook.plays.findIndex(x=>x.formation===p.formation&&x.play===p.play&&x.concept===p.concept);
+      if(idx>-1){ playbook.plays.splice(idx,1); save(LS.pb,playbook); renderPlaybook(); toast('Play removed'); }
+    });
+    rmTd.appendChild(rm); tr.appendChild(rmTd);
     tr.appendChild(el('td',null,p.formation));
     const td2=el('td');td2.appendChild(persPill(p.pers));tr.appendChild(td2);
     tr.appendChild(el('td',null,p.play));
     tr.appendChild(el('td',null,p.concept));
     const td5=el('td');td5.appendChild(famPill(p.family));tr.appendChild(td5);
     const td6=el('td');if(p.motion===2)td6.appendChild(el('span','pill motion','Move'));else if(p.motion===1){const s=el('span','pill','Form');s.style.cssText='background:#efe7d4;color:#9a7320';td6.appendChild(s);}tr.appendChild(td6);
+    if(p._manual){const m=el('td');const b=el('span');b.style.cssText='font-size:9px;color:var(--cool-d);font-weight:700';b.textContent='manual';m.appendChild(b);tr.appendChild(m);}
     tb.appendChild(tr);
   });
 }
 
-/* ---- Build list tab ---- */
+/* ── Playbook backup: download and upload ──────────────────────────────
+   The backup bundle contains everything needed to restore full state on
+   any device: playbook, corrections, formation-pers overrides, philosophy,
+   and ingame tracking. Loading a bundle restores all of those. ── */
+const PB_BACKUP_VERSION=2;
+
+function downloadPlaybookBackup(){
+  if(!playbook){toast('No playbook to download');return;}
+  const bundle={
+    _version:PB_BACKUP_VERSION,
+    _exported:new Date().toISOString(),
+    playbook,
+    philosophy,
+    corrections:_corrections,
+    formPers:_formPers,
+    ingame:ingame||null,
+    scout:scout||null,
+    motion
+  };
+  const name='callsheet_backup_'+(new Date().toISOString().slice(0,10))+'.json';
+  const blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  toast('Playbook backup downloaded: '+name);
+}
+
+function loadPlaybookBackup(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const bundle=JSON.parse(e.target.result);
+      if(!bundle.playbook||!bundle.playbook.plays){
+        $('#pb-upload-status').textContent='Error: file does not contain a valid playbook.';return;
+      }
+      // Restore all stores
+      playbook=bundle.playbook; save(LS.pb,playbook);
+      if(bundle.philosophy){philosophy=bundle.philosophy;save(LS.ph,philosophy);}
+      if(bundle.corrections){_corrections=bundle.corrections;save(LS_CORR,_corrections);}
+      if(bundle.formPers){_formPers=bundle.formPers;save(LS_FORM_PERS,_formPers);}
+      if(bundle.ingame){ingame=bundle.ingame;save(LS.ig,ingame);}
+      if(bundle.scout){scout=bundle.scout;save(LS.scout,scout);}
+      if(bundle.motion!=null){motion=Number(bundle.motion);save(LS.motion,String(motion));}
+      // Re-render everything
+      renderPlaybook();
+      initPhilosophyForm();
+      clearRecentSuggestions();
+      const n=playbook.plays.length;
+      const manual=(playbook.plays||[]).filter(p=>p._manual).length;
+      $('#pb-upload-status').textContent=`✓ Restored: ${n} plays${manual?' (incl. '+manual+' manual)':''} · exported ${bundle._exported?bundle._exported.slice(0,10):'unknown date'}`;
+      toast('Playbook restored — '+n+' plays');
+    }catch(err){
+      $('#pb-upload-status').textContent='Error reading file: '+err.message;
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ── Manual add play ────────────────────────────────────────────────── */
+function initAddPlayForm(){
+  // Concept select
+  const cs=$('#ap-concept');if(cs&&cs.options.length<=1){CONCEPTS.forEach(c=>{const o=el('option');o.value=c;o.textContent=c;cs.appendChild(o);});}
+  // Personnel select
+  const ps=$('#ap-pers');if(ps&&ps.options.length<=1){ALL_PERS.forEach(v=>{const o=el('option');o.value=v;o.textContent=v+' — '+PERS_LABEL[v].split(' — ')[1];ps.appendChild(o);});ps.value='11';}
+  // Formation datalist — unique formations from DB + book
+  const fl=$('#ap-formation-list');
+  if(fl&&!fl.children.length){
+    const forms=[...new Set([...PLAYS.map(p=>p.formation),...(playbook?playbook.plays.map(p=>p.formation):[])].sort())];
+    forms.forEach(f=>{const o=el('option');o.value=f;fl.appendChild(o);});
+  }
+  // Play datalist — updated when formation changes
+  const formInput=$('#ap-formation');
+  if(formInput&&!formInput._wired){
+    formInput._wired=true;
+    formInput.addEventListener('input',()=>{
+      const dl=$('#ap-play-list');if(!dl)return;dl.innerHTML='';
+      const form=formInput.value.trim();
+      const plays=[...new Set(PLAYS.filter(p=>p.formation===form).map(p=>p.play))];
+      plays.forEach(p=>{const o=el('option');o.value=p;dl.appendChild(o);});
+      // auto-fill concept/family/pers if play also matches
+    });
+  }
+}
+
+function addPlayToBook(){
+  if(!playbook){toast('No playbook — generate one first');return;}
+  const formation=($('#ap-formation').value||'').trim();
+  const play=($('#ap-play').value||'').trim().toUpperCase();
+  const concept=$('#ap-concept').value||CONCEPTS[0];
+  const family=$('#ap-family').value||'pass';
+  const pers=$('#ap-pers').value||'11';
+  const motion=Number($('#ap-motion').value)||0;
+  if(!formation){$('#ap-status').textContent='Formation is required.';return;}
+  if(!play){$('#ap-status').textContent='Play name is required.';return;}
+  // Check for duplicate
+  const dup=playbook.plays.find(p=>p.formation===formation&&p.play===play);
+  if(dup){$('#ap-status').textContent='That formation + play is already in the book.';return;}
+  const newPlay={formation,play,concept,family,pers,motion,_manual:true};
+  playbook.plays.push(newPlay);
+  // Rebuild audibles for this formation
+  if(playbook.audibles){
+    const formPlays=playbook.plays.filter(p=>p.formation===formation);
+    const rebuilt=buildAudibles(formPlays);
+    if(rebuilt[formation]) playbook.audibles[formation]=rebuilt[formation];
+  }
+  save(LS.pb,playbook);
+  // Update ingame concepts if ingame exists
+  if(ingame&&!ingame.concepts[concept]){
+    ingame.concepts[concept]={w:W_BASE,base:W_BASE,calls:0,success:0,neutral:0,failure:0,reasons:{}};
+    save(LS.ig,ingame);
+  }
+  renderPlaybook();
+  $('#ap-status').textContent=`✓ Added: ${formation} — ${play} (${concept})`;
+  // Clear play field, keep formation for rapid multi-add
+  $('#ap-play').value='';
+  toast('Play added to book');
+}
 function buildListRows(formFilter){
   if(!playbook)return[];
   const rows=playbook.plays.map(p=>({
@@ -2964,22 +3167,38 @@ function applyCorrectionsCSV(corrLines, cols){
 
 function commitCSVUpload(){
   if(!_csvPending||!_csvPending.length){toast('Nothing to commit');return;}
-  // Merge: index existing custom rows by key, overlay new rows
+
+  const skipDupes=document.querySelector&&document.querySelector('#csv-skip-dupes')&&document.querySelector('#csv-skip-dupes').checked;
+  const builtinKeys=new Set(PLAYS.map(p=>corrKey(p.formation,p.play)));
   const existing=_customDbRows?[..._customDbRows]:[];
   const existingKeys=new Map(existing.map((r,i)=>[corrKey(r.formation,r.play),i]));
-  let added=0,replaced=0;
+
+  let added=0, replaced=0, skippedBuiltin=0, skippedDupe=0;
   for(const row of _csvPending){
     const k=corrKey(row.formation,row.play);
-    if(existingKeys.has(k)){existing[existingKeys.get(k)]=row;replaced++;}
-    else{existingKeys.set(k,existing.length);existing.push(row);added++;}
+    // Always skip plays already in the built-in DB
+    if(builtinKeys.has(k)){skippedBuiltin++;continue;}
+    if(existingKeys.has(k)){
+      if(skipDupes){skippedDupe++;continue;}
+      existing[existingKeys.get(k)]=row; replaced++;
+    } else {
+      existingKeys.set(k,existing.length); existing.push(row); added++;
+    }
   }
+
   _customDbRows=existing;
   save(LS_CUSTOM_DB,_customDbRows);
   _csvPending=null;
   renderCsvDbStatus();
   $('#csv-preview').style.display='none';
-  $('#csv-status').textContent=`✓ Added ${added} new plays, updated ${replaced} — total custom plays: ${_customDbRows.length}. Regenerate your playbook to include them.`;
-  toast(`${added+replaced} plays imported`);
+
+  const parts=[];
+  if(added>0) parts.push(`${added} new plays added`);
+  if(replaced>0) parts.push(`${replaced} existing plays updated`);
+  if(skippedDupe>0) parts.push(`${skippedDupe} duplicates skipped`);
+  if(skippedBuiltin>0) parts.push(`${skippedBuiltin} already in built-in DB (ignored)`);
+  $('#csv-status').textContent=`✓ ${parts.join(' · ')} · Total custom plays: ${_customDbRows.length}. Your corrections are unchanged. Regenerate your playbook to include new plays.`;
+  toast(`${added+replaced} plays imported`+(skippedDupe?`, ${skippedDupe} skipped`:''));
 }
 
 function renderCsvDbStatus(){
@@ -3173,7 +3392,7 @@ function renderSuggestion(plays){
 function switchTab(name){
   $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
   $$('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+name));
-  if(name==='playbook')renderPlaybook();
+  if(name==='playbook'){renderPlaybook();initAddPlayForm();}
   if(name==='buildlist'){blFormIdx=-1;renderBuildList();}
   if(name==='scout')renderScout();
   if(name==='ingame')renderIngame();
@@ -3252,18 +3471,62 @@ function handleCsvFile(file){
       return;
     }
 
-    // ── New play DB upload — show preview ──
+    // ── New play DB upload — analyse duplicates before preview ──
     _csvPending=result.rows;
+
+    // Classify each row
+    const builtinKeys=new Set(PLAYS.map(p=>corrKey(p.formation,p.play)));
+    const customKeys=new Map((_customDbRows||[]).map((r,i)=>[corrKey(r.formation,r.play),i]));
+    let nNew=0, nReplaceCustom=0, nBuiltin=0;
+    result.rows.forEach(r=>{
+      const k=corrKey(r.formation,r.play);
+      if(builtinKeys.has(k)) nBuiltin++;
+      else if(customKeys.has(k)) nReplaceCustom++;
+      else nNew++;
+    });
+
+    // Build preview table (first 50 rows, colour-coded)
     const tbody=$('#csv-preview-tbody');tbody.innerHTML='';
     result.rows.slice(0,50).forEach(r=>{
+      const k=corrKey(r.formation,r.play);
+      const isBuiltin=builtinKeys.has(k);
+      const isReplace=!isBuiltin&&customKeys.has(k);
       const tr=document.createElement('tr');
-      [r.formation,r.play,r.family,r.concept,r.pers,r.motion===2?'Move':r.motion===1?'Form':'—'].forEach(v=>{
-        const td=document.createElement('td');td.textContent=v;tr.appendChild(td);
+      if(isBuiltin) tr.style.cssText='opacity:.45';
+      else if(isReplace) tr.style.cssText='background:#fff8e8';
+      [r.formation,r.play,r.family,r.concept,r.pers,isBuiltin?'⚠ in built-in DB':isReplace?'↺ replaces existing':'+ new'].forEach((v,i)=>{
+        const td=document.createElement('td');td.textContent=v;
+        if(i===5){td.style.cssText='font-size:10px;font-weight:700;color:'+(isBuiltin?'#9098a0':isReplace?'#8a7320':'#2c7a52');}
+        tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
+
     $('#csv-preview-title').textContent='Preview — '+result.rows.length+' plays from '+file.name;
-    $('#csv-preview-desc').textContent=(result.rows.length>50?'Showing first 50 of '+result.rows.length+' rows. ':'')+'Review below then click "Add to database."';
+
+    // Rich description of what will happen
+    const parts=[];
+    if(nNew>0) parts.push(`<span style="color:#2c7a52;font-weight:700">${nNew} new plays</span> will be added`);
+    if(nReplaceCustom>0) parts.push(`<span style="color:#8a7320;font-weight:700">${nReplaceCustom} existing custom plays</span> will be updated`);
+    if(nBuiltin>0) parts.push(`<span style="color:#9098a0">${nBuiltin} plays already in the built-in DB</span> — skipped automatically`);
+    const desc=document.createElement('div');
+    desc.innerHTML=parts.join(' · ')+'.<br><span style="color:#2c7a52;font-size:11px">✓ Your personnel corrections and Data tab overrides are not affected by this upload.</span>';
+    const existing=$('#csv-preview-desc');
+    if(existing){existing.innerHTML='';existing.appendChild(desc);}
+
+    // Show skip-duplicates toggle if there are any custom replacements
+    let skipToggle=$('#csv-skip-dupes');
+    if(!skipToggle){
+      skipToggle=document.createElement('label');skipToggle.id='csv-skip-dupes-label';
+      skipToggle.style.cssText='display:flex;align-items:center;gap:7px;font-size:12.5px;margin-top:8px;cursor:pointer';
+      const cb=document.createElement('input');cb.type='checkbox';cb.id='csv-skip-dupes';cb.style.width='auto';
+      skipToggle.appendChild(cb);
+      skipToggle.appendChild(document.createTextNode('Skip plays that already exist in my custom database (keep existing data)'));
+      const previewEl=$('#csv-preview');if(previewEl){const btn=$('#btn-csv-commit');if(btn)btn.parentNode.insertBefore(skipToggle,btn);}
+    }
+    if(nReplaceCustom===0&&skipToggle.parentNode) skipToggle.style.display='none';
+    else skipToggle.style.display='flex';
+
     $('#csv-preview').style.display='block';
     $('#csv-status').textContent='';
   };
@@ -3321,6 +3584,7 @@ $('#btn-reset-ph').addEventListener('click',()=>{
 });
 
 // base playbook tab
+$('#btn-pb-download').addEventListener('click',()=>downloadPlaybookBackup());
 $('#btn-load').addEventListener('click',()=>{playbook=loadJSON(LS.pb);renderPlaybook();toast(playbook?'Reloaded saved book':'No saved book');});
 $('#btn-clear-pb').addEventListener('click',()=>{
   if(!confirm('Clear the saved base playbook? In-game tracking will also reset.'))return;
@@ -3328,6 +3592,20 @@ $('#btn-clear-pb').addEventListener('click',()=>{
 });
 $('#btn-pb-tojump').addEventListener('click',()=>{switchTab('ingame');});
 $('#pb-filter').addEventListener('input',e=>renderPbTable(e.target.value));
+
+// Playbook backup upload — click or drag-and-drop
+(function(){
+  const dz=$('#pb-dropzone'), fi=$('#pb-file-input');
+  dz.addEventListener('click',()=>fi.click());
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)loadPlaybookBackup(f);});
+  fi.addEventListener('change',e=>{const f=e.target.files[0];if(f){loadPlaybookBackup(f);fi.value='';}});
+})();
+
+// Manual add play
+$('#btn-add-play').addEventListener('click',()=>addPlayToBook());
+$('#ap-play').addEventListener('keydown',e=>{if(e.key==='Enter')addPlayToBook();});
 $('#pb-aud-filter').addEventListener('input',e=>renderAudibles(e.target.value));
 $('#btn-aud-copy').addEventListener('click',async()=>{
   const txt=audiblesText(); if(!txt){toast('Generate a book first');return;}
@@ -3473,6 +3751,16 @@ $('#btn-twom-csv').addEventListener('click',()=>{
 initPhilosophyForm();
 if(playbook&&!ingame)seedIngameFromBook();
 console.log('Call Sheet ready · plays:',PLAYS.length,'· saved book:',playbook?playbook.plays.length:'none');
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').then(reg => {
+      reg.update();
+    }).catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
