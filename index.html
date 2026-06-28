@@ -4,13 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Call Sheet — Game Plan Builder</title>
-<link rel="manifest" href="./manifest.webmanifest">
-<meta name="theme-color" content="#0b3d20">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Call Sheet">
-<link rel="apple-touch-icon" href="./icon-180.png">
-
 <style>
   :root{
     --field:#0b3d20; --field2:#0a3119; --chalk:#f5f3ec; --chalk-dim:#b9c4ba;
@@ -254,6 +247,13 @@
 
 
 </style>
+
+<meta name="theme-color" content="#0b3d20">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Call Sheet">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
 </head>
 <body>
 <header class="topbar">
@@ -2581,34 +2581,80 @@ function inferMotion(form,play){
 function parseUploadedCSV(text){
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
   if(!lines.length) return {error:'Empty file'};
-  // Detect header — look for "formation" in first row
+
+  // Detect header
   let dataLines=lines;
   const header=lines[0].toLowerCase();
   const hasHeader=header.includes('formation');
   if(hasHeader) dataLines=lines.slice(1);
 
-  // Find column indices
   const cols=header.split(',').map(c=>c.trim().replace(/"/g,'').toLowerCase());
-  const fi=Math.max(cols.indexOf('formation'),0);
-  const pi=cols.indexOf('play')>-1?cols.indexOf('play'):4;
-  const fami=cols.indexOf('family_guess')>-1?cols.indexOf('family_guess'):cols.indexOf('family')>-1?cols.indexOf('family'):8;
-  const ci=cols.indexOf('concept')>-1?cols.indexOf('concept'):9;
+
+  // ── Detect corrections export format (has a "type" column) ──
+  // Corrections CSVs should be re-applied via applyCorrectionsCSV, not as a DB upload
+  if(cols.includes('type')&&(cols.includes('personnel')||cols.includes('motion'))){
+    return {isCorrections:true, corrLines:dataLines, cols};
+  }
+
+  // ── Standard play DB CSV ──
+  const fi  = Math.max(cols.indexOf('formation'),0);
+  const pi  = cols.indexOf('play')>-1 ? cols.indexOf('play') : 4;
+  const fami= cols.indexOf('family_guess')>-1 ? cols.indexOf('family_guess') : cols.indexOf('family')>-1 ? cols.indexOf('family') : 8;
+  const ci  = cols.indexOf('concept')>-1 ? cols.indexOf('concept') : 9;
+  // Read pers column if present — critical so exported data re-imports cleanly
+  const persi = cols.indexOf('personnel')>-1 ? cols.indexOf('personnel') : cols.indexOf('pers')>-1 ? cols.indexOf('pers') : -1;
 
   const parsedRows=[];
   for(const line of dataLines){
     if(!line.trim()) continue;
-    // Simple CSV split respecting quoted fields
     const parts=[];let cur='',inQ=false;
     for(const ch of line){if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){parts.push(cur);cur='';}else cur+=ch;}
     parts.push(cur);
-    const get=i=>i<parts.length?(parts[i]||'').trim().replace(/^"|"$/g,''):'';
+    const get=i=>i>=0&&i<parts.length?(parts[i]||'').trim().replace(/^"|"$/g,''):'';
     const formation=get(fi)||get(2); const play=get(pi)||get(4);
     const family=get(fami)||'pass'; const concept=get(ci)||'Other / Unknown';
     if(!formation||!play) continue;
-    parsedRows.push({formation,play,family:family.trim(),concept:concept.trim(),pers:inferPers(formation),motion:inferMotion(formation,play)});
+    // Use the pers column if it has a valid value, otherwise infer
+    const persRaw=get(persi);
+    const pers=persRaw&&ALL_PERS.includes(persRaw) ? persRaw : inferPers(formation);
+    parsedRows.push({formation,play,family:family.trim(),concept:concept.trim(),pers,motion:inferMotion(formation,play)});
   }
   if(!parsedRows.length) return {error:'No valid rows found. Check column format.'};
   return {rows:parsedRows};
+}
+
+/* Re-apply an exported corrections CSV back into the live correction stores */
+function applyCorrectionsCSV(corrLines, cols){
+  const get=(parts,col)=>{const i=cols.indexOf(col);return i>=0&&i<parts.length?(parts[i]||'').trim().replace(/^"|"$/g,''):'';}
+  let formCount=0, playCount=0;
+  for(const line of corrLines){
+    if(!line.trim()) continue;
+    const parts=[];let cur='',inQ=false;
+    for(const ch of line){if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){parts.push(cur);cur='';}else cur+=ch;}
+    parts.push(cur);
+    const type=get(parts,'type');
+    const formation=get(parts,'formation');
+    const play=get(parts,'play');
+    const concept=get(parts,'concept');
+    const family=get(parts,'family');
+    const pers=get(parts,'personnel');
+    const motRaw=get(parts,'motion');
+    const mot=motRaw!==''?Number(motRaw):null;
+    if(!formation) continue;
+    if(type==='formation-pers'){
+      // Formation-wide personnel override
+      if(pers&&ALL_PERS.includes(pers)){setFormPers(formation,pers);formCount++;}
+    } else {
+      // Play-level correction — only set fields that have values in the CSV
+      const patch={};
+      if(concept&&concept!=='Other / Unknown') patch.concept=concept;
+      if(family) patch.family=family;
+      if(pers&&ALL_PERS.includes(pers)) patch.pers=pers;
+      if(mot!==null&&!isNaN(mot)) patch.motion=mot;
+      if(Object.keys(patch).length&&play&&play!=='(all plays)'){setCorr(formation,play,patch);playCount++;}
+    }
+  }
+  return {formCount,playCount};
 }
 
 function commitCSVUpload(){
@@ -2891,8 +2937,18 @@ function handleCsvFile(file){
   reader.onload=e=>{
     const result=parseUploadedCSV(e.target.result);
     if(result.error){$('#csv-status').textContent='Error: '+result.error;return;}
+
+    // ── Corrections reimport ──
+    if(result.isCorrections){
+      const {formCount,playCount}=applyCorrectionsCSV(result.corrLines,result.cols);
+      renderCorrTable();updateCorrBatch();
+      $('#csv-status').textContent=`✓ Corrections reimported: ${formCount} formation-pers override${formCount!==1?'s':''}, ${playCount} play-level correction${playCount!==1?'s':''}. Review in the table above.`;
+      toast(`Corrections reimported — ${formCount+playCount} entries`);
+      return;
+    }
+
+    // ── New play DB upload — show preview ──
     _csvPending=result.rows;
-    // Show preview
     const tbody=$('#csv-preview-tbody');tbody.innerHTML='';
     result.rows.slice(0,50).forEach(r=>{
       const tr=document.createElement('tr');
