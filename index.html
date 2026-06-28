@@ -244,7 +244,29 @@
   .pers-row input[type=range]{height:5px;border-radius:3px;background:linear-gradient(90deg,var(--cool) 0%,var(--gold) 100%)}
   .pers-row input[type=range]::-webkit-slider-thumb{width:18px;height:18px}
   .pers-row input[type=range]::-moz-range-thumb{width:18px;height:18px}
-  /* ---------- Data tab ---------- */
+  /* ---------- Territory toggle (redzone/goalline) ---------- */
+  .territory-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .terr-btn{border:1.5px solid #cfcdc2;background:#fbfbf8;border-radius:3px;padding:7px 13px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;color:#4a5048;transition:.1s;display:flex;flex-direction:column;align-items:center;gap:1px}
+  .terr-btn:hover{background:#eaf1ec;border-color:var(--line)}
+  .terr-btn.on{background:var(--field);color:#fff;border-color:var(--field)}
+  .terr-btn .t-sub{font-size:9.5px;font-weight:600;opacity:.75}
+  .terr-btn.on .t-sub{opacity:.85}
+  /* ---------- 2-min script ---------- */
+  .twom-card{background:#0d1f2d;color:var(--chalk);border-radius:5px;padding:14px;margin-bottom:10px}
+  .twom-play{font-weight:800;font-size:14px;color:#7ecfff}
+  .twom-form{font-size:10.5px;color:rgba(245,243,236,.55);margin-top:1px}
+  .twom-tags{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}
+  .twom-note{font-size:11.5px;color:rgba(245,243,236,.8);margin-top:6px;line-height:1.45;border-left:3px solid #4a9eff;padding-left:8px}
+  .twom-observe{margin-top:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .twom-observe label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:rgba(245,243,236,.55)}
+  .twom-observe select{padding:5px 7px;font-size:12px;background:#1a2d3d;color:var(--chalk);border:1px solid #2d4a60;border-radius:3px}
+  .twom-observe select option{background:#1a2d3d}
+  .twom-sit{display:flex;align-items:center;gap:6px;margin-top:6px}
+  .twom-sit label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:rgba(245,243,236,.55)}
+  .twom-sit select{padding:4px 7px;font-size:11px;border-radius:3px;border:1px solid #2d4a60;background:#1a2d3d;color:var(--chalk);font-family:inherit;cursor:pointer}
+  .twom-sit select option{background:#1a2d3d;color:#fff}
+  .twom-logged{font-size:11px;font-weight:700;color:#7ecfff;margin-top:5px}
+  .twom-adj{font-size:10.5px;color:rgba(245,243,236,.65);margin-top:3px;border-top:1px solid #1d3040;padding-top:5px}
   .corr-edited td{background:#fffbe8}
   .corr-selected td{background:#f0f7ff!important}
   .inline-sel{width:100%;padding:4px 5px;font-size:12px;font-family:inherit;border:1px solid var(--gold-d);border-radius:2px;background:#fffbe8}
@@ -255,7 +277,7 @@
 
 
 </style>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0b3d20"></head>
+</head>
 <body>
 <header class="topbar">
   <div class="topbar-inner">
@@ -547,6 +569,7 @@
 
       <div class="btnbar" style="margin-top:20px">
         <button class="btn primary" id="btn-build-script">⚙ Build opening script</button>
+        <button class="btn primary" id="btn-build-twom-scout" style="background:#0d1f2d">⏱ Build 2-min script</button>
         <button class="btn gold" id="btn-new-game">↺ New game — reset all</button>
         <button class="btn danger sm" id="btn-clear-scout">Clear scout only</button>
       </div>
@@ -570,9 +593,21 @@
       </div>
       <div id="script-list" style="margin-top:12px"></div>
     </div>
+    <div class="card" id="twom-card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <h2 style="margin:0">Two-minute script</h2>
+          <div class="hint">Pre-planned sequence for clock-pressure situations. Adapts to in-game concept weights — better-performing concepts are promoted.</div>
+        </div>
+        <div class="btnbar" style="margin:0">
+          <button class="btn primary sm" id="btn-build-twom">⚙ Build / refresh</button>
+          <button class="btn gold sm" id="btn-twom-copy">⧉ Copy</button>
+          <button class="btn ghost sm" id="btn-twom-csv">⤓ CSV</button>
+        </div>
+      </div>
+      <div id="twom-list" style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px"></div>
+    </div>
   </section>
-
-  <!-- ============ IN-GAME ============ -->
   <section class="panel" id="panel-ingame">
     <div class="card">
       <h2>Adaptive In-Game Logic</h2>
@@ -607,7 +642,14 @@
         <div><h2 style="margin:0;font-size:14px">Next call</h2><div class="hint">Pick a play, run it, log the result — tracking updates immediately.</div></div>
         <button class="btn gold" id="btn-suggest">⚡ Suggest 3 plays</button>
       </div>
-      <label class="fld">Situation</label>
+      <label class="fld" style="margin-top:10px">Field position</label>
+      <div class="territory-row" id="ig-territory">
+        <button class="terr-btn on" data-zone="normal"><span>Normal</span><span class="t-sub">own 20 – opp 20</span></button>
+        <button class="terr-btn" data-zone="redzone"><span>🔴 Red Zone</span><span class="t-sub">opp 20 – opp 10</span></button>
+        <button class="terr-btn" data-zone="goalline"><span>🏈 Goal Line</span><span class="t-sub">opp 10 – opp 0</span></button>
+        <button class="terr-btn" data-zone="twominute"><span>⏱ Two-Minute</span><span class="t-sub">clock mgmt</span></button>
+      </div>
+      <label class="fld" style="margin-top:10px">Situation</label>
       <div class="dd-grid" id="ig-dd-grid">
         <button class="dd-btn on" data-down="1" data-dist="med"><span class="dd-main">1st &amp; 10</span><span class="dd-sub">balanced</span></button>
         <button class="dd-btn" data-down="1" data-dist="short"><span class="dd-main">1st &amp; Short</span><span class="dd-sub">≤2 yds</span></button>
@@ -927,7 +969,7 @@ let scout=loadJSON(LS.scout)||defaultScout();
 
 // run/pass band defaults per identity (run% min,max)
 const IDENTITY_RP={balanced:[45,58],run:[52,68],pass:[28,42],spread:[38,52],pro:[46,60]};
-function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null};}
+function defaultScout(){return{role:'even',intent:'balanced',cond:'normal',tempo:'mixed',front:'',shell:'',pers:'',press:'',force:'',lbfit:'',script:null,twoMin:null};}
 function loadJSON(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function loadNum(k,d){try{const v=localStorage.getItem(k);return v===null?d:Number(v);}catch(e){return d;}}
 function save(k,v){try{localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch(e){toast('Storage unavailable');}}
@@ -1357,25 +1399,90 @@ function _pushRecent(pl){ const k=pl.formation+'|'+pl.play; _recentPlays=_recent
 function _isRecent(pl){ return _recentPlays.includes(pl.formation+'|'+pl.play); }
 function clearRecentSuggestions(){ _recentPlays=[]; }
 
-function suggestPlay(down,dist){
+/* ── Territory multipliers ────────────────────────────────────
+   Applied on top of ddFit. Each zone strongly shapes concept selection:
+   · redzone:   scoring range — no shots (already covered), isolations, spacing, smash, corner routes
+   · goalline:  power run, quick pass, no spread, heavy pers preferred
+   · twominute: clock-friendly — quick passes, middle of field, screens; avoid runs/power  */
+function zoneFit(pl, zone){
+  if(!zone||zone==='normal') return 1.0;
+  const c=pl.concept, f=pl.family;
+  const run=isRunFamily(f), pass=f==='pass', scr=f==='screen';
+  const power=["Power / Power O","Dive","Trap","Counter"].includes(c);
+  const quick=["Quick Game","Slants","Stick","Spot","Spacing","Mesh","Shallow"].includes(c);
+  const shot=AGGR_SHOT_CONCEPTS.includes(c);
+  const middle=["Stick","Spot","Mesh","Shallow","Y Cross","Curls / Curl Flats","Spacing","Slants"].includes(c);
+  const corner_out=["Smash","Bench / Corner Strike","Sail","Flood"].includes(c);
+  const isPa = f==='play_action' || PA_CONCEPTS.has(c);
+
+  if(zone==='redzone'){
+    // Red zone: compression kills deep shots; spacing/smash/corner routes/RPOs thrive;
+    // moderate run; PA still dead (follows the PA gate); screens are less useful (no space)
+    if(shot) return 0.45;              // verticals have nowhere to go
+    if(isPa) return 0;                 // PA gate unchanged
+    if(scr) return 0.6;               // screen has no space to develop
+    if(corner_out) return 1.55;        // smash/flood/bench live in RZ
+    if(quick) return 1.45;             // quick game — timing + compression
+    if(c==='Option / RPO') return 1.35;
+    if(run&&power) return 1.3;         // power run is fine in RZ
+    if(run) return 1.15;
+    if(["Wheel","Mesh"].includes(c)) return 1.35;
+    return 1.0;
+  }
+
+  if(zone==='goalline'){
+    // Goal line: power run dominant; quick passes live; no room for routes to develop
+    if(isPa) return 0;
+    if(shot) return 0.2;
+    if(scr) return 0.35;
+    if(power) return 2.2;              // Power O/Dive are the play
+    if(run) return 1.5;
+    if(quick) return 1.3;              // quick slants, fades
+    if(c==='Option / RPO') return 1.2;
+    if(["Smash","Mesh"].includes(c)) return 1.1;
+    return 0.7;
+  }
+
+  if(zone==='twominute'){
+    // Two-minute: tempo, stop-the-clock, middle of field, check downs
+    // Runs kill the clock (bad); power runs especially bad; shots are fine but take time
+    if(isPa) return 0;                 // slow developing
+    if(run&&!c.includes('Draw')) return 0.25;  // runs burn clock
+    if(c==='Draw') return 0.6;         // draw is a changeup but risky on clock
+    if(scr) return 1.4;               // screens get OOB opportunities
+    if(middle) return 1.55;            // middle-of-field routes = easy completions, stop clock
+    if(shot) return 1.1;              // shots can work — quick hitter
+    if(corner_out) return 1.2;         // boundary routes → OOB
+    if(pass) return 1.2;
+    return 0.9;
+  }
+
+  return 1.0;
+}
+
+function suggestPlay(down, dist, zone){
   if(!playbook){return null;}
   if(!ingame) seedIngameFromBook();
   _suggestCallN++;
   const band=effectiveBand();
   const share=liveRunShare();
   let runNudge=1, passNudge=1;
-  if(share!=null){
+  // In two-minute / goal-line, suppress the run/pass balance nudge — situation overrides balance
+  const overrideBalance=zone==='twominute'||zone==='goalline';
+  if(!overrideBalance && share!=null){
     if(share*100>band.hi){ passNudge=1.3; runNudge=0.78; }
     else if(share*100<band.lo){ runNudge=1.3; passNudge=0.78; }
   }
 
-  // Score every play in the book
   const scored=playbook.plays.map(pl=>{
     const c=ingame.concepts[pl.concept]||{w:W_BASE};
     let s=c.w;
     s*=ddFit(pl,down,dist);
+    s*=zoneFit(pl,zone);               // ← territory layer
     s*=readMult(pl);
-    if(isRunFamily(pl.family)) s*=runNudge; else s*=passNudge;
+    if(!overrideBalance){
+      if(isRunFamily(pl.family)) s*=runNudge; else s*=passNudge;
+    }
     if(AGGR_SHOT_CONCEPTS.includes(pl.concept)) s*=band.shotMult;
     if(pl.concept==='Other / Unknown') s*=0.5;
     const mf=pl.motion===2?1.4:pl.motion===1?0.6:0;
@@ -2120,6 +2227,143 @@ function scriptText(){
   return out.trim();
 }
 
+/* ============================================================
+   TWO-MINUTE SCRIPT
+   ============================================================ */
+const TWOM_PREFER=["Stick","Spot","Mesh","Shallow","Quick Game","Slants","Spacing","Smash","Bench / Corner Strike","Sail","Flood","Curls / Curl Flats","Screen","Y Cross","Option / RPO","Wheel"];
+const TWOM_AVOID=["Power / Power O","Dive","Trap","Counter","HB Base / Zone","Inside Zone","Outside Zone / Stretch","Sweep","Jet Sweep"];
+
+function inferTwomSit(pl){
+  const c=pl.concept,f=pl.family;
+  if(f==='screen'||c==='Draw') return {down:'2',dist:'long'};
+  if(["Stick","Spot","Slants","Quick Game","Shallow","Spacing","Mesh"].includes(c)) return {down:'3',dist:'med'};
+  if(["Smash","Bench / Corner Strike","Sail","Curls / Curl Flats"].includes(c)) return {down:'2',dist:'med'};
+  if(["Flood","Y Cross","Wheel"].includes(c)) return {down:'2',dist:'med'};
+  if(c==='Option / RPO') return {down:'1',dist:'med'};
+  if(AGGR_SHOT_CONCEPTS.includes(c)) return {down:'1',dist:'med'};
+  return {down:'2',dist:'med'};
+}
+
+function twomNote(pl){
+  const c=pl.concept;
+  if(["Stick","Spot"].includes(c)) return "Quick completion — hit and get OOB or fall forward for clock stop.";
+  if(["Slants","Quick Game","Shallow"].includes(c)) return "Fast release vs any coverage — take what's open, get down.";
+  if(["Mesh","Spacing"].includes(c)) return "Rub concepts — pick your best matchup, gain yards in bounds if ahead.";
+  if(c==='Screen') return "Screen to slow the rush and gain yards fast — watch for dropped coverage.";
+  if(c==='Draw') return "Draw as a changeup — use only if defense is selling out on pass rush.";
+  if(["Smash","Bench / Corner Strike"].includes(c)) return "Boundary shot — high-low the corner, OOB option.";
+  if(["Flood","Sail"].includes(c)) return "Flood the boundary — find the OOB window or hit the sit route.";
+  if(c==='Curls / Curl Flats') return "Curl-flat to the boundary — curl for 1st down, flat to get OOB.";
+  if(c==='Y Cross') return "Crosser to the field — works vs zone, gain yards in bounds if needed.";
+  if(c==='Wheel') return "Wheel route off motion — man beater, gets to the sideline.";
+  if(c==='Option / RPO') return "RPO — take the run if box is light, throw quick to keep clock moving.";
+  if(AGGR_SHOT_CONCEPTS.includes(c)) return "Shot play — call early in the drive when you have time.";
+  return "Clock-friendly concept — complete, get the yardage, manage the clock.";
+}
+
+function buildTwoMinScript(){
+  if(!playbook) return null;
+  const used=new Set(); const usedConcepts=new Set();
+  const scored=playbook.plays
+    .filter(pl=>!TWOM_AVOID.includes(pl.concept))
+    .map(pl=>{
+      const cw=ingame&&ingame.concepts[pl.concept]?ingame.concepts[pl.concept].w:W_BASE;
+      let s=cw*zoneFit(pl,'twominute');
+      if(TWOM_PREFER.includes(pl.concept)) s*=1.6;
+      s*=readMult(pl);
+      if(pl.concept==='Other / Unknown') s*=0.3;
+      s*=0.85+((pl.id*2654435761>>>0)%100)/100*0.3;
+      return {pl,s};
+    }).sort((a,b)=>b.s-a.s);
+
+  const items=[];
+  const TARGET=8;
+
+  function tryAdd(pl){
+    if(used.has(pl.formation+'|'+pl.play)||usedConcepts.has(pl.concept)) return false;
+    used.add(pl.formation+'|'+pl.play); usedConcepts.add(pl.concept);
+    items.push({n:items.length+1,formation:pl.formation,play:pl.play,concept:pl.concept,
+      family:pl.family,pers:pl.pers,motion:pl.motion,
+      situation:inferTwomSit(pl),note:twomNote(pl),observed:null});
+    return true;
+  }
+
+  const roles=[
+    {pred:p=>p.family==='screen'||p.concept==='Draw', max:1},
+    {pred:p=>["Stick","Spot","Slants","Quick Game","Shallow","Spacing","Mesh"].includes(p.concept), max:3},
+    {pred:p=>["Smash","Bench / Corner Strike","Sail","Curls / Curl Flats"].includes(p.concept), max:2},
+    {pred:p=>["Flood","Y Cross","Wheel","Option / RPO"].includes(p.concept), max:2},
+    {pred:p=>AGGR_SHOT_CONCEPTS.includes(p.concept), max:1}
+  ];
+  for(const role of roles){
+    let added=0;
+    for(const {pl} of scored){if(items.length>=TARGET||added>=role.max)break;if(role.pred(pl))if(tryAdd(pl))added++;}
+  }
+  for(const {pl} of scored){if(items.length>=TARGET)break;if(!used.has(pl.formation+'|'+pl.play)&&!usedConcepts.has(pl.concept))tryAdd(pl);}
+
+  scout.twoMin=items; save(LS.scout,scout); return items;
+}
+
+function renderTwoMinScript(){
+  const list=$('#twom-list'); if(!list)return; list.innerHTML='';
+  const items=scout.twoMin||[];
+  if(!items.length){list.innerHTML='<div class="hint" style="padding:10px">Build the two-minute script on the Scout tab.</div>';return;}
+  const SIT_OPTS=[{down:'1',dist:'med',label:'1st & 10'},{down:'1',dist:'short',label:'1st & Short'},{down:'2',dist:'short',label:'2nd & Short'},{down:'2',dist:'med',label:'2nd & Med'},{down:'2',dist:'long',label:'2nd & Long'},{down:'3',dist:'short',label:'3rd & Short'},{down:'3',dist:'med',label:'3rd & Med'},{down:'3',dist:'long',label:'3rd & Long'}];
+  items.forEach((it,idx)=>{
+    const card=el('div','twom-card');
+    const hdr=el('div');hdr.style.cssText='display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap';
+    const ln=el('div');
+    const numSpan=el('span');numSpan.style.cssText='font-family:monospace;font-weight:800;font-size:17px;color:var(--gold);margin-right:8px';numSpan.textContent=String(it.n);
+    ln.appendChild(numSpan);ln.appendChild(el('div','twom-play',it.play));ln.appendChild(el('div','twom-form',it.formation));hdr.appendChild(ln);
+    const sitWrap=el('div','twom-sit');sitWrap.appendChild(el('label',null,'Sit:'));
+    const sitSel=el('select');
+    SIT_OPTS.forEach(o=>{const opt=el('option');opt.value=o.down+'|'+o.dist;opt.textContent=o.label;sitSel.appendChild(opt);});
+    const curSit=it.situation||{down:'2',dist:'med'};sitSel.value=curSit.down+'|'+curSit.dist;
+    sitSel.addEventListener('change',()=>{const[d,di]=sitSel.value.split('|');scout.twoMin[idx].situation={down:d,dist:di};save(LS.scout,scout);});
+    sitWrap.appendChild(sitSel);hdr.appendChild(sitWrap);card.appendChild(hdr);
+    const tags=el('div','twom-tags');
+    const pp=el('span','pill pers',it.pers);pp.style.cssText='background:rgba(255,255,255,.15);color:var(--chalk)';tags.appendChild(pp);
+    const fp=el('span','pill '+it.family,it.family.replace('_',' '));tags.appendChild(fp);
+    const cp=el('span');cp.style.cssText='display:inline-block;padding:2px 7px;border-radius:8px;font-size:9.5px;font-weight:700;background:rgba(126,207,255,.18);color:#7ecfff;text-transform:uppercase;letter-spacing:.03em';cp.textContent=it.concept;tags.appendChild(cp);
+    card.appendChild(tags);
+    card.appendChild(el('div','twom-note',it.note));
+    const obsWrap=el('div','twom-observe');obsWrap.appendChild(el('label',null,'Result:'));
+    const oSel=el('select');
+    [{v:'',l:'— log —'},{v:'success',l:'✓ Worked'},{v:'neutral',l:'~ OK'},{v:'failure',l:'✕ Failed'}]
+      .forEach(o=>{const opt=el('option');opt.value=o.v;opt.textContent=o.l;oSel.appendChild(opt);});
+    if(it.observed)oSel.value=it.observed;
+    oSel.addEventListener('change',()=>{
+      if(!oSel.value)return;
+      scout.twoMin[idx].observed=oSel.value;
+      const note=logResult(it.concept,oSel.value,'');
+      save(LS.scout,scout);
+      const lg=el('div','twom-logged','✓ '+it.concept+' logged to tracking');card.appendChild(lg);
+      if(note){const adj=el('div','twom-adj',note);card.appendChild(adj);}
+      renderBoard();renderIngameStats();renderRunPassMeter();
+      toast(it.concept+' logged');
+    });
+    obsWrap.appendChild(oSel);card.appendChild(obsWrap);
+    if(it.observed){card.appendChild(el('div','twom-logged','✓ Logged: '+it.observed));}
+    list.appendChild(card);
+  });
+}
+
+function twoMinCSV(){
+  const rows=scout.twoMin||[];
+  const SL={'1|med':'1st & 10','1|short':'1st & Short','2|short':'2nd & Short','2|med':'2nd & Med','2|long':'2nd & Long','3|short':'3rd & Short','3|med':'3rd & Med','3|long':'3rd & Long'};
+  const esc=v=>/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
+  return [['#','Situation','Formation','Personnel','Play','Concept','Note'].join(',')].concat(
+    rows.map(r=>[r.n,r.situation?(SL[r.situation.down+'|'+r.situation.dist]||''):'',r.formation,r.pers,r.play,r.concept,r.note].map(String).map(esc).join(','))
+  ).join('\n');
+}
+function twoMinText(){
+  const SL={'1|med':'1st & 10','1|short':'1st & Short','2|med':'2nd & Med','2|long':'2nd & Long','3|med':'3rd & Med','3|long':'3rd & Long'};
+  return (scout.twoMin||[]).map(r=>{
+    const sit=r.situation?'['+(SL[r.situation.down+'|'+r.situation.dist]||'')+'] ':'';
+    return `${r.n}. ${sit}${r.formation} [${r.pers}] — ${r.play}  (${r.concept})\n   ${r.note}`;
+  }).join('\n\n');
+}
+
 /* ---------- Audibles deliverable text/CSV ---------- */
 function audibleRows(){
   if(!playbook||!playbook.audibles)return[];
@@ -2169,6 +2413,8 @@ function renderScout(){
   // script
   if(scout.script&&scout.script.length){$('#script-card').style.display='block';renderOpeningScript();}
   else $('#script-card').style.display='none';
+  if(scout.twoMin&&scout.twoMin.length){$('#twom-card').style.display='block';renderTwoMinScript();}
+  else $('#twom-card').style.display='none';
 }
 function renderPosture(){
   const p=posture(), b=effectiveBand();
@@ -3130,14 +3376,17 @@ $('#btn-csv').addEventListener('click',()=>{
 });
 
 // in-game — down & distance button grid
-let _igDown='1', _igDist='med';   // default: 1st & 10
+let _igDown='1', _igDist='med', _igZone='normal';
+$$('#ig-territory .terr-btn').forEach(b=>b.addEventListener('click',()=>{
+  $$('#ig-territory .terr-btn').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); _igZone=b.dataset.zone;
+}));
 $$('#ig-dd-grid .dd-btn').forEach(b=>b.addEventListener('click',()=>{
   $$('#ig-dd-grid .dd-btn').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on');
-  _igDown=b.dataset.down; _igDist=b.dataset.dist;
+  b.classList.add('on'); _igDown=b.dataset.down; _igDist=b.dataset.dist;
 }));
 $('#btn-ig-reset').addEventListener('click',()=>{if(!playbook){toast('No playbook');return;}seedIngameFromBook();clearRecentSuggestions();$('#ig-plays').innerHTML='';renderIngame();toast('In-game tracking reset to base');});
-$('#btn-suggest').addEventListener('click',()=>{const plays=suggestPlay(_igDown,_igDist);renderSuggestion(plays);});
+$('#btn-suggest').addEventListener('click',()=>{const plays=suggestPlay(_igDown,_igDist,_igZone);renderSuggestion(plays);});
 $$('#ig-sort button').forEach(b=>b.addEventListener('click',()=>{igSort=b.dataset.s;$$('#ig-sort button').forEach(x=>x.classList.toggle('on',x===b));renderBoard();}));
 
 // scout
@@ -3194,6 +3443,30 @@ $('#btn-script-csv').addEventListener('click',()=>{
   toast('Script CSV downloaded');
 });
 
+// Two-minute script buttons
+function buildAndRenderTwoMin(){
+  if(!playbook){toast('Generate a base playbook first');return;}
+  if(!ingame) seedIngameFromBook();
+  buildTwoMinScript();
+  const card=$('#twom-card');if(card)card.style.display='block';
+  renderTwoMinScript();
+  toast('Two-minute script built — '+scout.twoMin.length+' plays');
+  const el2=$('#twom-card');if(el2)el2.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+$('#btn-build-twom').addEventListener('click',()=>buildAndRenderTwoMin());
+$('#btn-build-twom-scout').addEventListener('click',()=>buildAndRenderTwoMin());
+$('#btn-twom-copy').addEventListener('click',async()=>{
+  const txt=twoMinText();if(!txt){toast('Build 2-min script first');return;}
+  try{await navigator.clipboard.writeText(txt);toast('2-min script copied');}
+  catch(e){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('2-min script copied');}
+});
+$('#btn-twom-csv').addEventListener('click',()=>{
+  if(!scout.twoMin||!scout.twoMin.length){toast('Build 2-min script first');return;}
+  const blob=new Blob([twoMinCSV()],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='two_minute_script.csv';document.body.appendChild(a);a.click();a.remove();
+  toast('2-min script CSV downloaded');
+});
+
 /* ============================================================
    BOOT
    ============================================================ */
@@ -3201,5 +3474,5 @@ initPhilosophyForm();
 if(playbook&&!ingame)seedIngameFromBook();
 console.log('Call Sheet ready · plays:',PLAYS.length,'· saved book:',playbook?playbook.plays.length:'none');
 </script>
-<script>if('serviceWorker'in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js'));}</script></body>
+</body>
 </html>
