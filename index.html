@@ -247,13 +247,6 @@
 
 
 </style>
-
-<meta name="theme-color" content="#0b3d20">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Call Sheet">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icon-180.png">
 </head>
 <body>
 <header class="topbar">
@@ -313,6 +306,7 @@
             <button data-v="11" class="on">11</button>
             <button data-v="12">12</button>
             <button data-v="13">13</button>
+            <button data-v="20">20</button>
             <button data-v="21">21</button>
             <button data-v="22">22</button>
             <button data-v="23">23</button>
@@ -700,6 +694,7 @@
               <option value="11">11 — 1RB 1TE 3WR</option>
               <option value="12">12 — 1RB 2TE 2WR</option>
               <option value="13">13 — 1RB 3TE 1WR</option>
+              <option value="20">20 — 2RB 0TE 3WR</option>
               <option value="21">21 — 2RB 1TE 2WR</option>
               <option value="22">22 — 2RB 2TE 1WR</option>
               <option value="23">23 — 2RB 3TE 0WR</option>
@@ -799,17 +794,18 @@ const DB = window.__DB;
    DB rows decode to their 4 original values; corrections/uploads can assign any of the 7. */
 const PERS = ['10','11','12','21'];   // DB decode — do not change order
 // All valid personnel groupings (for UI selectors and generation)
-const ALL_PERS = ['10','11','12','13','21','22','23'];
+const ALL_PERS = ['10','11','12','13','20','21','22','23'];
 const PERS_LABEL = {
   '10':'10 — 0RB 0TE 5WR (empty)',
   '11':'11 — 1RB 1TE 3WR',
   '12':'12 — 1RB 2TE 2WR',
   '13':'13 — 1RB 3TE 1WR',
+  '20':'20 — 2RB 0TE 3WR',
   '21':'21 — 2RB 1TE 2WR',
   '22':'22 — 2RB 2TE 1WR',
   '23':'23 — 2RB 3TE 0WR'
 };
-// Heavy (run-favored) personnel groups
+// Heavy (run-favored) personnel groups — 20 is two backs but no TE, stays light tier for pass mix
 const HEAVY_PERS = new Set(['12','13','21','22','23']);
 const FORMS = DB.forms, CONCEPTS = DB.concepts, FAMS = DB.fams;
 
@@ -1027,12 +1023,12 @@ function buildAudibles(book){
     for(const p of namedFirst(pool)){ if(chosen.length>=4)break; take(p,false); }
     // 3) top up from full DB for this formation (diverse roles), tagged not-in-book
     if(chosen.length<4){
-      const extra=namedFirst((FORMATION_PLAYS[form]||[]).filter(p=>!usedKey.has(p.play)));
+      const extra=namedFirst((FORMATION_PLAYS[form]||[]).filter(p=>!usedKey.has(p.play)).map(applyCorr));
       ROLES.forEach(role=>{ if(chosen.length>=4)return; const m=extra.find(p=>audRole(p)===role&&!usedKey.has(p.play)&&!usedConcept.has(p.concept)); if(m){m._added=true;take(m);} });
       for(const p of extra){ if(chosen.length>=4)break; if(take(p,false)){p._added=true;} }
     }
     // 4) last resort: allow concept duplicates to reach 4
-    if(chosen.length<4){ for(const p of (FORMATION_PLAYS[form]||[])){ if(chosen.length>=4)break; if(!usedKey.has(p.play)){p._added=!byForm[form].includes(p);take(p,true);} } }
+    if(chosen.length<4){ for(const p of (FORMATION_PLAYS[form]||[]).map(applyCorr)){ if(chosen.length>=4)break; if(!usedKey.has(p.play)){p._added=!byForm[form].find(b=>b.play===p.play);take(p,true);} } }
     out[form]=chosen.slice(0,4).map(pl=>({
       play:pl.play, concept:pl.concept, family:pl.family, pers:pl.pers, motion:pl.motion,
       role:audRole(pl), beats:CONCEPT_BEATS[pl.concept]||'', inBook:!pl._added
@@ -1062,8 +1058,9 @@ function generatePlaybook(){
   const target=p.size;
   const seed=hashPhil(p,motion);
 
-  // score every play
-  const scored=PLAYS.filter(pl=>pl.family!=='unknown').map(pl=>{
+  // score every play — use effectivePlays() so user corrections (formation pers,
+  // concept/family patches) are applied before selection, not just in the UI display
+  const scored=effectivePlays().filter(pl=>pl.family!=='unknown').map(pl=>{
     let s=mix[pl.family]||0.05;
     // personnel preference — heavy (12/13/21/22/23) vs light (10/11)
     const wantHeavy=HEAVY_PERS.has(p.pers);
@@ -1156,12 +1153,13 @@ function generatePlaybook(){
 
   // Pass 2: top up any formations below MIN to reach minimum depth
   // Use named plays first, fall back to any play if needed to hit the floor
+  // Apply corrections so formation pers overrides carry through here too
   const haveIds=new Set(book.map(b=>b.id));
   for(const form of formRanked){
     const cnt=formCount.get(form)||0;
     if(cnt>=MIN_FORM_PLAYS) continue;
     const need=MIN_FORM_PLAYS-cnt;
-    const allPool=(FORMATION_PLAYS[form]||[]).filter(pl=>!haveIds.has(pl.id));
+    const allPool=(FORMATION_PLAYS[form]||[]).filter(pl=>!haveIds.has(pl.id)).map(applyCorr);
     const namedPool=allPool.filter(pl=>pl.family!=='unknown'&&pl.concept!=='Other / Unknown');
     const cands=(namedPool.length>=need?namedPool:allPool).sort((a,b)=>(mix[b.family]||0)-(mix[a.family]||0));
     for(const pl of cands){
@@ -2562,8 +2560,11 @@ function inferPers(form){
   // 22 — 2RB 2TE
   if(/(i.?form|i-form|full.?house|pony).*(te|tight|y off|wing|flex|deuce|ace)/.test(f)) return '22';
   if(/(te|tight|y off|wing|flex|deuce|ace).*(i.?form|i-form|full.?house|pony)/.test(f)) return '22';
-  // 21 — 2RB 1TE/0TE
-  if(/i.?form|i-form|full.?house|pony/.test(f)) return '21';
+  // 20 — 2RB 0TE (I Form / Full House without TE keywords, or explicit pony spread)
+  if(/i.?form|i-form|full.?house|pony/.test(f)) return '20';
+  // 21 — 2RB 1TE (two backs with a TE keyword present)
+  // (already handled above if they also have a TE keyword — this catches remaining 2-back sets)
+  if(/21|two.?back|twin.?back|hb.?fb/.test(f)) return '21';
   // 13 — 1RB 3TE
   if(/3te|three.?te|triple.?te/.test(f)) return '13';
   if(/(tight|y off|wing).*(flex|deuce|ace|dubs)/.test(f)) return '13';
@@ -3136,14 +3137,6 @@ $('#btn-script-csv').addEventListener('click',()=>{
 initPhilosophyForm();
 if(playbook&&!ingame)seedIngameFromBook();
 console.log('Call Sheet ready · plays:',PLAYS.length,'· saved book:',playbook?playbook.plays.length:'none');
-</script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
-  });
-}
 </script>
 </body>
 </html>
